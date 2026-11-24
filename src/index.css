@@ -1,0 +1,137 @@
+/* Reset & Tipografia SEMEC Capivari */
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;1,400;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --color-verde-mata: #1B5E3A;
+  --color-verde-dark: #14452B;
+  --color-ouro: #C99B53;
+  --color-terracota: #A83A28;
+  --color-papel: #F9F7F2;
+  --color-areia: #E6E0D4;
+  --color-texto: #1F2421;
+  --color-texto-sec: #59615C;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--color-papel);
+  color: var(--color-texto);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tipografia Editorial para Títulos Institucionais */
+h1, h2, h3, h4, .ant-typography h1, .ant-typography h2, .ant-typography h3, .ant-typography h4, .ant-drawer-title, .brand-title {
+  font-family: 'Merriweather', Georgia, serif !important;
+  font-weight: 700 !important;
+  color: #1F2421 !important;
+  letter-spacing: -0.01em;
+}
+
+/* Neutralizar line-height do Header do AntD para evitar que o texto suba */
+.ant-layout-header {
+  line-height: normal !important;
+}
+
+/* Alto contraste e clareza para o Menu Lateral da Secretaria (#14452B) */
+.ant-layout-sider .ant-menu-dark {
+  background: transparent !important;
+}
+
+.ant-layout-sider .ant-menu-dark .ant-menu-item {
+  color: #E2E8E4 !important; /* Branco esverdeado suave e nítido para itens inativos */
+  margin: 6px 12px !important;
+  width: calc(100% - 24px) !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-layout-sider .ant-menu-dark .ant-menu-item:hover {
+  color: #FFFFFF !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.ant-layout-sider .ant-menu-dark .ant-menu-item-selected {
+  background-color: #1B5E3A !important; /* Verde-mata de destaque */
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+  border-left: 3px solid #C99B53 !important; /* Filete dourado lateral */
+}
+
+.ant-layout-sider .ant-menu-dark .ant-menu-item-selected .anticon {
+  color: #C99B53 !important; /* Ícone em dourado no item ativo */
+}
+
+/* Números tabulares para tabelas, moedas e valores */
+.ant-table-cell, .ant-statistic-content, .tabular-nums, .price-tag {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Faixa decorativa superior tri-color SEMEC com mais presença (7px) */
+.semec-flag-bar {
+  display: flex;
+  width: 100%;
+  height: 7px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.semec-flag-bar .bar-green {
+  background-color: #1B5E3A;
+  flex: 5;
+}
+.semec-flag-bar .bar-gold {
+  background-color: #C99B53;
+  flex: 2;
+}
+.semec-flag-bar .bar-terracotta {
+  background-color: #A83A28;
+  flex: 2;
+}
+
+/* Estilo de Card Editorial com Filete Semântico */
+.semec-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E6E0D4 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  transition: border-color 0.2s ease;
+}
+
+.semec-card-accent-green {
+  border-top: 3px solid #1B5E3A !important;
+}
+
+.semec-card-accent-gold {
+  border-top: 3px solid #C99B53 !important;
+}
+
+.semec-card-accent-terracotta {
+  border-top: 3px solid #A83A28 !important;
+}
+
+/* Rodapé Oficial */
+.semec-footer {
+  background: #FFFFFF;
+  border-top: 2px solid #C99B53;
+  padding: 16px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: #59615C;
+}
+
+.semec-footer a {
+  color: #1B5E3A;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.semec-footer a:hover {
+  text-decoration: underline;
+}
