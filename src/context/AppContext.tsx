@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AlunoCadastro, ProtocoloMensal, CupomFiscalItem, FaixaReembolso, StatusRecadastro, StatusProtocolo } from '../types';
+import type { AlunoCadastro, ProtocoloMensal, CupomFiscalItem, FaixaReembolso, StatusRecadastro, StatusProtocolo } from '../types';
 import { ALUNOS_MOCK, PROTOCOLOS_MOCK } from '../mocks/initialData';
+import { isSupabaseConfigured } from '../services/supabaseClient';
+import {
+  carregarAlunosDb,
+  carregarProtocolosDb,
+  salvarRecadastroDb,
+  julgarRecadastroDb,
+  inserirProtocoloDb,
+  julgarProtocoloDb,
+} from '../services/databaseService';
 
 interface AppContextType {
   // Perfil Atual
@@ -69,6 +78,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Sincronização inicial com o Banco de Dados (se configurado via .env)
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    (async () => {
+      const [alunosDb, protocolosDb] = await Promise.all([
+        carregarAlunosDb(),
+        carregarProtocolosDb(),
+      ]);
+      if (alunosDb && alunosDb.length > 0) {
+        setTodosAlunos(alunosDb);
+        setAlunoAtualId(alunosDb[0].id);
+      }
+      if (protocolosDb) {
+        setProtocolos(protocolosDb);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('APP_ALUNOS', JSON.stringify(todosAlunos));
   }, [todosAlunos]);
@@ -92,19 +119,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Atualizar cadastro do aluno
   const atualizarCadastroAluno = (dados: Partial<AlunoCadastro>) => {
-    setTodosAlunos((prev) =>
-      prev.map((a) =>
-        a.id === alunoAtual.id
-          ? {
-              ...a,
-              ...dados,
-              status: 'EM_ANALISE', // volta para análise ao reenviar
-              dataAtualizacao: new Date().toISOString(),
-              motivoPendencia: undefined,
-            }
-          : a
-      )
-    );
+    const atualizado: AlunoCadastro = {
+      ...alunoAtual,
+      ...dados,
+      status: 'EM_ANALISE',
+      dataAtualizacao: new Date().toISOString(),
+      motivoPendencia: undefined,
+    };
+
+    setTodosAlunos((prev) => prev.map((a) => (a.id === alunoAtual.id ? atualizado : a)));
+    void salvarRecadastroDb(atualizado);
   };
 
   // Adicionar cupom em rascunho com trava antifraude
@@ -148,6 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setProtocolos((prev) => [novo, ...prev]);
+    void inserirProtocoloDb(novo);
     return novo;
   };
 
@@ -165,19 +190,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
+    void julgarRecadastroDb(alunoId, status, faixa, motivo);
   };
 
   // Julgamento de protocolo mensal (Secretaria)
   const julgarProtocolo = (protocoloId: string, status: StatusProtocolo, motivo?: string) => {
+    const acaoTxt =
+      status === 'APROVADO_PAGAMENTO'
+        ? 'Aprovado para pagamento'
+        : status === 'PENDENTE_CORRECAO'
+        ? 'Devolvido com pendência de correção'
+        : 'Reprovado';
+
     setProtocolos((prev) =>
       prev.map((p) => {
         if (p.id !== protocoloId) return p;
-        const acaoTxt =
-          status === 'APROVADO_PAGAMENTO'
-            ? 'Aprovado para pagamento'
-            : status === 'PENDENTE_CORRECAO'
-            ? 'Devolvido com pendência de correção'
-            : 'Reprovado';
 
         return {
           ...p,
@@ -196,6 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
+    void julgarProtocoloDb(protocoloId, status, acaoTxt, motivo);
   };
 
   return (

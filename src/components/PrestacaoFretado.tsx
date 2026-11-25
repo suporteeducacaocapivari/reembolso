@@ -30,6 +30,8 @@ import dayjs from 'dayjs';
 import { useApp } from '../context/AppContext';
 import { analisarDocumentoTransporte } from '../services/geminiService';
 import { gerarPdfAnexoIV } from '../services/pdfService';
+import { QrCodeScannerModal } from './QrCodeScannerModal';
+import type { DadosQrCodeFiscal } from '../services/qrFiscalParser';
 import type { DocumentoExtraidoGemini, ProtocoloMensal } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
@@ -49,6 +51,30 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
   const [declarou, setDeclarou] = useState(false);
   const [protocoloGerado, setProtocoloGerado] = useState<ProtocoloMensal | null>(null);
   const [modalSucesso, setModalSucesso] = useState(false);
+  const [modalQrOpen, setModalQrOpen] = useState(false);
+
+  const handleQrDecodedFretado = (dados: DadosQrCodeFiscal) => {
+    form.setFieldsValue({
+      numero: dados.numeroDocumento,
+      cnpj: dados.cnpjEmissor,
+      ...(dados.dataEmissao ? { dataEmissao: dayjs(dados.dataEmissao) } : {}),
+      ...(dados.valorTotal ? { valorTotal: dados.valorTotal } : {}),
+    });
+    if (dados.valorTotal) {
+      setValorTotal(dados.valorTotal);
+    }
+    setDadosIa({
+      tipo_documento: dados.modelo === 'BP-e' ? 'BPE' : 'NF',
+      cnpj_emissor: dados.cnpjEmissor,
+      numero_documento: dados.numeroDocumento,
+      chave_acesso_44_digitos: dados.chaveAcesso,
+      data_emissao: dados.dataEmissao || `${dados.anoMes}-01`,
+      valor_total: dados.valorTotal || valorTotal,
+      confianca_leitura: 'ALTA',
+      origem_leitura: 'GEMINI_REAL',
+    });
+    message.success(`Dados do QR Code (${dados.numeroDocumento}) preenchidos automaticamente!`);
+  };
 
   const percentualFaixa = alunoAtual.faixaReembolso === '100%' ? 1.0 : 0.75;
   const valorEstimadoReembolso = Number((valorTotal * percentualFaixa).toFixed(2));
@@ -187,27 +213,38 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
               </Upload.Dragger>
             </div>
 
-            {arquivoFile && (
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                <Button
-                  icon={<FileSearchOutlined />}
-                  type="default"
-                  loading={loadingIa}
-                  style={{ borderColor: '#1B5E3A', color: '#1B5E3A' }}
-                  onClick={() => handleProcessarDocumento(arquivoFile)}
-                >
-                  Extrair dados novamente
-                </Button>
-                {arquivoPreviewUrl && (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+              <Button
+                icon={<ScanOutlined />}
+                type="primary"
+                style={{ background: '#1B5E3A', borderColor: '#1B5E3A' }}
+                onClick={() => setModalQrOpen(true)}
+              >
+                Ler QR Code (Câmera / Foto)
+              </Button>
+
+              {arquivoFile && (
+                <>
                   <Button
-                    icon={<EyeOutlined />}
-                    onClick={() => window.open(arquivoPreviewUrl, '_blank')}
+                    icon={<FileSearchOutlined />}
+                    type="default"
+                    loading={loadingIa}
+                    style={{ borderColor: '#1B5E3A', color: '#1B5E3A' }}
+                    onClick={() => handleProcessarDocumento(arquivoFile)}
                   >
-                    Visualizar Anexo
+                    Extrair dados novamente
                   </Button>
-                )}
-              </div>
-            )}
+                  {arquivoPreviewUrl && (
+                    <Button
+                      icon={<EyeOutlined />}
+                      onClick={() => window.open(arquivoPreviewUrl, '_blank')}
+                    >
+                      Visualizar Anexo
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
 
             {dadosIa && (
               <Alert
@@ -387,6 +424,14 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
           </div>
         </div>
       </Card>
+
+      {/* MODAL LEITOR REAL DE QR CODE (CÂMERA / FOTO) */}
+      <QrCodeScannerModal
+        open={modalQrOpen}
+        onClose={() => setModalQrOpen(false)}
+        onDecoded={handleQrDecodedFretado}
+        exigirValor={false}
+      />
 
       {/* MODAL SUCESSO PROTOCOLO TIMBRADO SEMEC */}
       <Modal

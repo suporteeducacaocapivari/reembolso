@@ -28,6 +28,8 @@ import dayjs from 'dayjs';
 import { useApp } from '../context/AppContext';
 import type { CupomFiscalItem, ProtocoloMensal } from '../types';
 import { analisarDocumentoTransporte } from '../services/geminiService';
+import { QrCodeScannerModal } from './QrCodeScannerModal';
+import type { DadosQrCodeFiscal } from '../services/qrFiscalParser';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -46,6 +48,7 @@ export const PrestacaoLinhaCircular: React.FC<Props> = ({ mesReferencia }) => {
   } = useApp();
 
   const [modalManualOpen, setModalManualOpen] = useState(false);
+  const [modalQrOpen, setModalQrOpen] = useState(false);
   const [chaveManual, setChaveManual] = useState('');
   const [valorManual, setValorManual] = useState<string>('7.50');
   const [loadingIa, setLoadingIa] = useState(false);
@@ -96,15 +99,14 @@ export const PrestacaoLinhaCircular: React.FC<Props> = ({ mesReferencia }) => {
     return false;
   };
 
-  const handleSimularQrCodeScanner = () => {
-    const chaveGerada = `352611${Math.floor(10000000000000 + Math.random() * 90000000000000)}${Math.floor(100000000000000000000000 + Math.random() * 900000000000000000000000)}`.slice(0, 44);
+  const handleQrDecoded = (dados: DadosQrCodeFiscal) => {
     const novoCupom: CupomFiscalItem = {
       id: 'cup-' + Date.now(),
-      chaveAcesso: chaveGerada,
-      dataEmissao: new Date().toISOString().split('T')[0],
-      numero: `CF-${Math.floor(1000 + Math.random() * 9000)}`,
-      cnpjEmissor: '07.123.456/0001-89',
-      valor: 7.50,
+      chaveAcesso: dados.chaveAcesso,
+      dataEmissao: dados.dataEmissao || `${dados.anoMes}-01`,
+      numero: dados.numeroDocumento,
+      cnpjEmissor: dados.cnpjEmissor,
+      valor: dados.valorTotal || 0,
       confianca: 'ALTA',
     };
 
@@ -112,7 +114,7 @@ export const PrestacaoLinhaCircular: React.FC<Props> = ({ mesReferencia }) => {
     if (!res.sucesso) {
       message.error(res.mensagem);
     } else {
-      message.success(`Leitura de QR Code efetuada com sucesso (R$ 7,50).`);
+      message.success(`${dados.numeroDocumento} (R$ ${novoCupom.valor.toFixed(2)}) adicionado ao lote via QR Code!`);
     }
   };
 
@@ -255,11 +257,11 @@ export const PrestacaoLinhaCircular: React.FC<Props> = ({ mesReferencia }) => {
           <Space wrap size="middle">
             <Button
               icon={<ScanOutlined />}
-              onClick={handleSimularQrCodeScanner}
-              type="default"
-              style={{ borderColor: '#1B5E3A', color: '#1B5E3A' }}
+              onClick={() => setModalQrOpen(true)}
+              type="primary"
+              style={{ background: '#1B5E3A', borderColor: '#1B5E3A' }}
             >
-              Leitor de QR Code
+              Ler QR Code (Câmera / Foto)
             </Button>
 
             <Upload beforeUpload={handleUploadCupom} showUploadList={false} accept="image/*,.pdf">
@@ -334,6 +336,14 @@ export const PrestacaoLinhaCircular: React.FC<Props> = ({ mesReferencia }) => {
           </Button>
         </div>
       </Card>
+
+      {/* MODAL LEITOR REAL DE QR CODE (CÂMERA / FOTO) */}
+      <QrCodeScannerModal
+        open={modalQrOpen}
+        onClose={() => setModalQrOpen(false)}
+        onDecoded={handleQrDecoded}
+        exigirValor={true}
+      />
 
       {/* MODAL INSERÇÃO MANUAL */}
       <Modal
