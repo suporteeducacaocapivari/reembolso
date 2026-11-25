@@ -20,8 +20,10 @@ import {
   IdcardOutlined,
   DollarCircleOutlined,
   FilePdfOutlined,
+  CalculatorOutlined,
 } from '@ant-design/icons';
-import { Button, message } from 'antd';
+import { Button, message, Modal, Divider } from 'antd';
+import dayjs from 'dayjs';
 import { useApp } from '../context/AppContext';
 import { RecadastroFase1 } from './RecadastroFase1';
 import { PrestacaoFretado } from './PrestacaoFretado';
@@ -36,6 +38,54 @@ export const AreaAluno: React.FC = () => {
   const { alunoAtual, todosAlunos, setAlunoAtualId, protocolos } = useApp();
   const [mesReferencia, setMesReferencia] = useState('2026-11');
   const [tipoTransporte, setTipoTransporte] = useState<TipoTransporte>('FRETADO');
+  const [mesesFechados, setMesesFechados] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('APP_MESES_FECHADOS');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const mesAtualCalendario = dayjs().format('YYYY-MM');
+  const chaveMesAluno = `${alunoAtual.id}_${mesReferencia}`;
+  const isMesAtualFechado = Boolean(mesesFechados[chaveMesAluno]) || mesReferencia < mesAtualCalendario;
+
+  const confirmarFechamentoMesConsolidado = (
+    protocolosDoMes: typeof protocolos,
+    somaComprovado: number,
+    somaReembolso: number
+  ) => {
+    Modal.confirm({
+      title: `Fechar o mês ${mesReferencia} e liberar Anexo IV?`,
+      icon: <ExclamationCircleOutlined style={{ color: '#A83A28' }} />,
+      width: 500,
+      okText: 'Sim, Fechar Mês e Liberar Anexo IV',
+      okButtonProps: { style: { background: '#1B5E3A', borderColor: '#1B5E3A' } },
+      cancelText: 'Cancelar',
+      content: (
+        <div style={{ marginTop: 8 }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="Atenção: ação irreversível"
+            description={`Ao fechar o mês ${mesReferencia}, não será possível reabri-lo para adicionar novos comprovantes. Todos os ${protocolosDoMes.length} documento(s) do mês serão somados em um único Anexo IV oficial.`}
+            style={{ marginBottom: 12, borderRadius: 6 }}
+          />
+          <div style={{ background: '#F9F7F2', border: '1px solid #E6E0D4', borderRadius: 6, padding: 10, fontSize: 13 }}>
+            <div><strong>Valor Total Somado:</strong> R$ {somaComprovado.toFixed(2)}</div>
+            <div><strong>Reembolso Estimado ({alunoAtual.faixaReembolso}):</strong> <strong style={{ color: '#1B5E3A' }}>R$ {somaReembolso.toFixed(2)}</strong></div>
+          </div>
+        </div>
+      ),
+      onOk: () => {
+        const atualizado = { ...mesesFechados, [chaveMesAluno]: true };
+        setMesesFechados(atualizado);
+        localStorage.setItem('APP_MESES_FECHADOS', JSON.stringify(atualizado));
+        message.success(`Mês ${mesReferencia} fechado com sucesso! Agora você pode gerar o Anexo IV consolidado.`);
+      },
+    });
+  };
 
   const isAprovado = alunoAtual.status === 'APROVADO';
   const isPendente = alunoAtual.status === 'PENDENTE_CORRECAO';
@@ -314,78 +364,152 @@ export const AreaAluno: React.FC = () => {
                 )}
 
                 {/* HISTÓRICO DE PROTOCOLOS RECENTES */}
-                {meusProtocolos.length > 0 && (
-                  <Card
-                    title={
-                      <span style={{ fontFamily: "'Merriweather', serif", fontWeight: 700, fontSize: 15 }}>
-                        Protocolos Submetidos pelo Estudante
-                      </span>
-                    }
-                    className="semec-card"
-                    size="small"
-                    style={{ marginTop: 24 }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {meusProtocolos.map((p) => (
-                        <div
-                          key={p.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            padding: '12px 16px',
-                            background: '#F9F7F2',
-                            borderRadius: 6,
-                            border: '1px solid #E6E0D4',
-                          }}
-                        >
-                          <div>
-                            <Text strong style={{ color: '#1B5E3A', fontFamily: 'monospace' }}>
-                              {p.codigoHash}
-                            </Text>{' '}
-                            <Tag style={{ background: '#FFFFFF', borderColor: '#E6E0D4' }}>{p.mesReferencia}</Tag>
-                            <Tag style={{ background: '#E8F5E9', color: '#1B5E3A', borderColor: '#C8E6C9' }}>
-                              {p.tipoTransporte === 'FRETADO' ? 'Fretado' : 'Circular'}
-                            </Tag>
-                            <div style={{ fontSize: 12, color: '#59615C', marginTop: 4 }}>
-                              Comprovado: R$ {p.valorTotalComprovado.toFixed(2)} • Reembolso Estimado: R${' '}
-                              {p.valorReembolsoEstimado.toFixed(2)}
-                            </div>
-                          </div>
-                          <Space>
-                            <Button
-                              size="small"
-                              icon={<FilePdfOutlined />}
-                              style={{ borderColor: '#1B5E3A', color: '#1B5E3A' }}
-                              onClick={() =>
-                                gerarPdfAnexoIV(p, alunoAtual)
-                                  .then(() => message.success('Anexo IV gerado com sucesso!'))
-                                  .catch(() => message.error('Erro ao gerar PDF.'))
-                              }
-                            >
-                              Anexo IV (PDF)
-                            </Button>
-                            {p.status === 'APROVADO_PAGAMENTO' && (
-                              <Tag color="success">Autorizado para Pagamento</Tag>
-                            )}
-                            {p.status === 'PENDENTE_ANALISE' && (
-                              <Tag style={{ backgroundColor: '#FFF8E1', color: '#C99B53', borderColor: '#FFE082' }}>
-                                Em Auditoria
+                {meusProtocolos.length > 0 && (() => {
+                  const protocolosDoMesAtual = meusProtocolos.filter((p) => p.mesReferencia === mesReferencia);
+                  const somaTotalMes = protocolosDoMesAtual.reduce((acc, p) => acc + p.valorTotalComprovado, 0);
+                  const somaReembolsoMes = protocolosDoMesAtual.reduce((acc, p) => acc + p.valorReembolsoEstimado, 0);
+
+                  const handleGerarAnexoConsolidado = () => {
+                    if (protocolosDoMesAtual.length === 0) return;
+                    const base = protocolosDoMesAtual[0];
+                    const consolidado = {
+                      ...base,
+                      nfNumero:
+                        protocolosDoMesAtual.length > 1
+                          ? `Lote Consolidado (${protocolosDoMesAtual.length} docs)`
+                          : base.nfNumero,
+                      valorTotalComprovado: somaTotalMes,
+                      valorIndividualNf: somaTotalMes,
+                      valorReembolsoEstimado: somaReembolsoMes,
+                    };
+                    gerarPdfAnexoIV(consolidado, alunoAtual)
+                      .then(() => message.success('Anexo IV consolidado do mês gerado com sucesso!'))
+                      .catch(() => message.error('Erro ao gerar o PDF do Anexo IV.'));
+                  };
+
+                  return (
+                    <Card
+                      title={
+                        <span style={{ fontFamily: "'Merriweather', serif", fontWeight: 700, fontSize: 15 }}>
+                          Protocolos Submetidos pelo Estudante
+                        </span>
+                      }
+                      className="semec-card"
+                      size="small"
+                      style={{ marginTop: 24 }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {meusProtocolos.map((p) => (
+                          <div
+                            key={p.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              padding: '12px 16px',
+                              background: '#F9F7F2',
+                              borderRadius: 6,
+                              border: '1px solid #E6E0D4',
+                            }}
+                          >
+                            <div>
+                              <Text strong style={{ color: '#1B5E3A', fontFamily: 'monospace' }}>
+                                {p.codigoHash}
+                              </Text>{' '}
+                              <Tag style={{ background: '#FFFFFF', borderColor: '#E6E0D4' }}>{p.mesReferencia}</Tag>
+                              <Tag style={{ background: '#E8F5E9', color: '#1B5E3A', borderColor: '#C8E6C9' }}>
+                                {p.tipoTransporte === 'FRETADO' ? 'Fretado' : 'Circular'}
                               </Tag>
-                            )}
-                            {p.status === 'PENDENTE_CORRECAO' && (
-                              <Tooltip title={p.motivoPendencia}>
-                                <Tag color="error">Pendência Registrada</Tag>
-                              </Tooltip>
-                            )}
-                            {p.status === 'REPROVADO' && <Tag color="error">Indeferido</Tag>}
-                          </Space>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
+                              <div style={{ fontSize: 12, color: '#59615C', marginTop: 4 }}>
+                                Comprovado: R$ {p.valorTotalComprovado.toFixed(2)} • Reembolso Estimado: R${' '}
+                                {p.valorReembolsoEstimado.toFixed(2)}
+                              </div>
+                            </div>
+                            <Space>
+                              {p.status === 'APROVADO_PAGAMENTO' && (
+                                <Tag color="success">Autorizado para Pagamento</Tag>
+                              )}
+                              {p.status === 'PENDENTE_ANALISE' && (
+                                <Tag style={{ backgroundColor: '#FFF8E1', color: '#C99B53', borderColor: '#FFE082' }}>
+                                  Em Auditoria
+                                </Tag>
+                              )}
+                              {p.status === 'PENDENTE_CORRECAO' && (
+                                <Tooltip title={p.motivoPendencia}>
+                                  <Tag color="error">Pendência Registrada</Tag>
+                                </Tooltip>
+                              )}
+                              {p.status === 'REPROVADO' && <Tag color="error">Indeferido</Tag>}
+                            </Space>
+                          </div>
+                        ))}
+                      </div>
+
+                      {protocolosDoMesAtual.length > 0 && (
+                        <>
+                          <Divider style={{ margin: '16px 0 12px' }} />
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: 12,
+                              background: '#FFFFFF',
+                              padding: '12px 14px',
+                              borderRadius: 6,
+                              border: '1px solid #E6E0D4',
+                            }}
+                          >
+                            <div style={{ fontSize: 13 }}>
+                              <Text strong style={{ color: '#1F2421' }}>
+                                Fechamento do mês {mesReferencia}:
+                              </Text>{' '}
+                              <Text type="secondary">
+                                {protocolosDoMesAtual.length} protocolo(s) • Total:{' '}
+                                <strong style={{ color: '#1B5E3A' }}>R$ {somaTotalMes.toFixed(2)}</strong>
+                              </Text>
+                            </div>
+
+                            <Space wrap>
+                              {!isMesAtualFechado ? (
+                                <Button
+                                  type="primary"
+                                  icon={<CalculatorOutlined />}
+                                  style={{ background: '#1B5E3A', borderColor: '#1B5E3A', fontWeight: 600 }}
+                                  onClick={() =>
+                                    confirmarFechamentoMesConsolidado(
+                                      protocolosDoMesAtual,
+                                      somaTotalMes,
+                                      somaReembolsoMes
+                                    )
+                                  }
+                                >
+                                  Fechar Mês e Gerar Cálculo ({mesReferencia})
+                                </Button>
+                              ) : (
+                                <>
+                                  <Tag color="success" icon={<LockOutlined />} style={{ margin: 0, padding: '4px 10px' }}>
+                                    Mês {mesReferencia} Fechado
+                                  </Tag>
+                                  <Button
+                                    type="primary"
+                                    icon={<FilePdfOutlined />}
+                                    style={{ background: '#1B5E3A', borderColor: '#1B5E3A', fontWeight: 600 }}
+                                    onClick={handleGerarAnexoConsolidado}
+                                  >
+                                    Gerar Anexo IV Consolidado (PDF)
+                                  </Button>
+                                </>
+                              )}
+                            </Space>
+                          </div>
+                        </>
+                      )}
+                    </Card>
+                  );
+                })()}
               </div>
             ),
           },

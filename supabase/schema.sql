@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS public.protocolos_mensais (
   empresa_transporte VARCHAR(255),
   nf_numero VARCHAR(60),
   nf_cnpj VARCHAR(25),
+  nf_chave_acesso VARCHAR(60),
+  nf_qr_code_url TEXT,
   nf_data_emissao DATE,
   nf_arquivo_url TEXT,
   nf_arquivo_nome VARCHAR(255),
@@ -124,6 +126,8 @@ CREATE TABLE IF NOT EXISTS public.cupons_fiscais (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   protocolo_id UUID NOT NULL REFERENCES public.protocolos_mensais(id) ON DELETE CASCADE,
   chave_acesso VARCHAR(44) NOT NULL UNIQUE, -- TRAVA ANTIFRAUDE NO BANCO: impede duplicidade global!
+  qr_code_url TEXT,
+  empresa_emissora VARCHAR(255),
   data_emissao DATE,
   numero VARCHAR(60) NOT NULL,
   cnpj_emissor VARCHAR(25) NOT NULL,

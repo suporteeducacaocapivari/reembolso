@@ -51,6 +51,14 @@ export interface AlunoCadastro {
   status: StatusRecadastro;
   motivoPendencia?: string;
   dataAtualizacao: string;
+  assinaturaFacial?: {
+    fotoBase64: string;
+    hashAssinatura: string;
+    dataHora: string;
+    scoreConfianca: number;
+    motor: 'UNIFACE_API' | 'BIOMETRIA_NAVEGADOR';
+    leuLeiEDecreto: boolean;
+  };
 }
 
 export interface DocumentoExtraidoGemini {
@@ -59,20 +67,24 @@ export interface DocumentoExtraidoGemini {
   cnpj_emissor: string;
   numero_documento: string;
   chave_acesso_44_digitos: string | null;
+  qr_code_url?: string | null;
   data_emissao: string;
   valor_total: number;
   confianca_leitura: 'ALTA' | 'MEDIA' | 'BAIXA';
-  origem_leitura?: 'GEMINI_REAL' | 'SIMULADO_SEM_CHAVE';
+  origem_leitura?: 'GEMINI_REAL' | 'OCR_LOCAL_REAL' | 'SIMULADO_SEM_CHAVE';
 }
 
 export interface CupomFiscalItem {
   id: string;
   chaveAcesso: string;
+  qrCodeUrl?: string;
+  empresaEmissora?: string;
   dataEmissao: string;
   numero: string;
   cnpjEmissor: string;
   valor: number;
   comprovanteFotoUrl?: string;
+  comprovanteNome?: string;
   confianca?: 'ALTA' | 'MEDIA' | 'BAIXA';
 }
 
@@ -99,6 +111,8 @@ export interface ProtocoloMensal {
   empresaTransporte?: string;
   nfNumero?: string;
   nfCnpj?: string;
+  nfChaveAcesso?: string;
+  nfQrCodeUrl?: string;
   nfDataEmissao?: string;
   nfArquivoUrl?: string;
   nfArquivoNome?: string;

@@ -14,6 +14,8 @@ import {
   Alert,
   Space,
   InputNumber,
+  Tabs,
+  Checkbox,
 } from 'antd';
 import {
   UserOutlined,
@@ -26,10 +28,15 @@ import {
   FilePdfOutlined,
   PlusOutlined,
   DeleteOutlined,
+  SafetyCertificateOutlined,
+  BookOutlined,
 } from '@ant-design/icons';
 import { useApp } from '../context/AppContext';
 import type { FaixaReembolso, AlunoCadastro } from '../types';
 import { gerarPdfRequerimento } from '../services/pdfService';
+import { LEI_5103_2017_TEXTO, DECRETO_6892_2019_TEXTO } from '../constants/legislacao';
+import { AssinaturaFacialBox } from './AssinaturaFacialBox';
+import type { ResultadoAssinaturaFacial } from '../services/faceAuthService';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -41,6 +48,10 @@ export const RecadastroFase1: React.FC = () => {
   const [faixaDesejada, setFaixaDesejada] = useState<FaixaReembolso>(alunoAtual.faixaReembolso || '75%');
   const [enviadoSucesso, setEnviadoSucesso] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [leuLeiEDecreto, setLeuLeiEDecreto] = useState(false);
+  const [assinaturaFacial, setAssinaturaFacial] = useState<ResultadoAssinaturaFacial | undefined>(
+    alunoAtual.assinaturaFacial
+  );
 
   React.useEffect(() => {
     form.setFieldsValue({
@@ -101,13 +112,23 @@ export const RecadastroFase1: React.FC = () => {
   };
 
   const handleFinalizar = async () => {
+    if (!leuLeiEDecreto) {
+      message.error('É obrigatório ler e concordar com a Lei Municipal nº 5.103/2017 e o Decreto nº 6.892/2019.');
+      return;
+    }
+    if (!assinaturaFacial) {
+      message.error('É obrigatório realizar a assinatura digital por reconhecimento facial antes de submeter.');
+      return;
+    }
+
     try {
       const values = await form.validateFields();
       atualizarCadastroAluno({
         ...values,
         faixaReembolso: faixaDesejada,
+        assinaturaFacial,
       });
-      message.success('Requerimento submetido com sucesso à SEMEC Capivari!');
+      message.success('Requerimento assinado facialmente e submetido com sucesso à SEMEC Capivari!');
       setEnviadoSucesso(true);
     } catch {
       message.error('Verifique o preenchimento de todos os requisitos do formulário.');
@@ -176,6 +197,7 @@ export const RecadastroFase1: React.FC = () => {
           { title: 'Dados Pessoais & Endereço', icon: <UserOutlined /> },
           { title: 'Dados Bancários & PIX', icon: <BankOutlined /> },
           { title: 'Faixa, Renda & Documentos', icon: <FileDoneOutlined /> },
+          { title: 'Lei, Decreto & Assinatura Facial', icon: <SafetyCertificateOutlined /> },
         ]}
       />
 
@@ -518,6 +540,95 @@ export const RecadastroFase1: React.FC = () => {
             </div>
           </div>
 
+          {/* ETAPA 4: LEITURA OBRIGATÓRIA DA LEI + DECRETO E ASSINATURA DIGITAL POR RECONHECIMENTO FACIAL */}
+          <div style={{ display: currentStep === 3 ? 'block' : 'none' }}>
+            <Alert
+              type="info"
+              showIcon
+              icon={<BookOutlined />}
+              message="Etapa 4: Leitura Obrigatória da Legislação Municipal e Assinatura Facial"
+              description="Tanto no primeiro cadastro quanto no recadastramento semestral, é obrigatória a leitura integral da Lei Municipal nº 5.103/2017 e do Decreto nº 6.892/2019, seguida da assinatura digital por reconhecimento facial."
+              style={{ marginBottom: 18, borderRadius: 6, border: '1px solid #E6E0D4', background: '#F9F7F2' }}
+            />
+
+            <Tabs
+              type="card"
+              style={{ marginBottom: 16 }}
+              items={[
+                {
+                  key: 'lei',
+                  label: 'Lei Municipal nº 5.103/2017',
+                  children: (
+                    <div
+                      style={{
+                        maxHeight: 260,
+                        overflowY: 'auto',
+                        padding: 16,
+                        background: '#FFFFFF',
+                        border: '1px solid #E6E0D4',
+                        borderRadius: 6,
+                        whiteSpace: 'pre-wrap',
+                        fontSize: 12.5,
+                        lineHeight: 1.65,
+                        color: '#1F2421',
+                      }}
+                    >
+                      {LEI_5103_2017_TEXTO}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'decreto',
+                  label: 'Decreto Municipal nº 6.892/2019',
+                  children: (
+                    <div
+                      style={{
+                        maxHeight: 260,
+                        overflowY: 'auto',
+                        padding: 16,
+                        background: '#FFFFFF',
+                        border: '1px solid #E6E0D4',
+                        borderRadius: 6,
+                        whiteSpace: 'pre-wrap',
+                        fontSize: 12.5,
+                        lineHeight: 1.65,
+                        color: '#1F2421',
+                      }}
+                    >
+                      {DECRETO_6892_2019_TEXTO}
+                    </div>
+                  ),
+                },
+              ]}
+            />
+
+            <div
+              style={{
+                background: '#F9F7F2',
+                padding: 14,
+                borderRadius: 6,
+                border: '1px solid #E6E0D4',
+                marginBottom: 18,
+              }}
+            >
+              <Checkbox checked={leuLeiEDecreto} onChange={(e) => setLeuLeiEDecreto(e.target.checked)}>
+                <span style={{ fontSize: 13, color: '#1F2421' }}>
+                  <strong>Declaro que li integralmente</strong> a <strong>Lei Municipal nº 5.103/2017</strong> e o{' '}
+                  <strong>Decreto nº 6.892/2019</strong>, estando ciente das regras de frequência mínima (75%),
+                  prazos semestrais e penalidades em caso de irregularidade ou desistência.
+                </span>
+              </Checkbox>
+            </div>
+
+            <AssinaturaFacialBox
+              cpfAluno={form.getFieldValue('cpf') || alunoAtual.cpf}
+              nomeAluno={form.getFieldValue('nome') || alunoAtual.nome}
+              habilitado={leuLeiEDecreto}
+              assinaturaAtual={assinaturaFacial}
+              onAssinado={(res) => setAssinaturaFacial(res)}
+            />
+          </div>
+
           {/* BOTÕES DE NAVEGAÇÃO */}
           <Divider style={{ margin: '24px 0 16px' }} />
           <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
@@ -528,7 +639,7 @@ export const RecadastroFase1: React.FC = () => {
             ) : <span />}
 
             <Space>
-              {currentStep === 2 && (
+              {currentStep === 3 && (
                 <Button
                   size="large"
                   icon={<FilePdfOutlined />}
@@ -540,7 +651,7 @@ export const RecadastroFase1: React.FC = () => {
                 </Button>
               )}
 
-              {currentStep < 2 ? (
+              {currentStep < 3 ? (
                 <Button type="primary" size="large" icon={<ArrowRightOutlined />} onClick={handleNext} style={{ background: '#1B5E3A', borderColor: '#1B5E3A', borderRadius: 6 }}>
                   Avançar
                 </Button>
@@ -548,11 +659,12 @@ export const RecadastroFase1: React.FC = () => {
                 <Button
                   type="primary"
                   size="large"
+                  disabled={!leuLeiEDecreto || !assinaturaFacial}
                   style={{ background: '#1B5E3A', borderColor: '#1B5E3A', borderRadius: 6, fontWeight: 600 }}
                   icon={<CheckCircleOutlined />}
                   onClick={handleFinalizar}
                 >
-                  Submeter Requerimento à SEMEC
+                  Submeter Requerimento Assinado à SEMEC
                 </Button>
               )}
             </Space>

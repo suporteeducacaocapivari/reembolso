@@ -16,6 +16,7 @@ import {
   Divider,
   Timeline,
   Image,
+  Collapse,
 } from 'antd';
 import {
   DashboardOutlined,
@@ -29,10 +30,13 @@ import {
   DollarOutlined,
   UsergroupAddOutlined,
   FilePdfOutlined,
+  SafetyCertificateOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useApp } from '../context/AppContext';
 import { gerarPdfRequerimento, gerarPdfAnexoIV } from '../services/pdfService';
+import { gerarUrlConsultaSefaz } from '../services/qrFiscalParser';
 import type { AlunoCadastro, ProtocoloMensal, FaixaReembolso, StatusRecadastro, StatusProtocolo } from '../types';
 
 const { Content, Sider } = Layout;
@@ -865,30 +869,78 @@ export const PainelSecretaria: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <Text strong style={{ fontSize: 13 }}>Cupons Fiscais do Lote ({protocoloEmAnalise.cupons?.length || 0}):</Text>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10, maxHeight: 420, overflowY: 'auto' }}>
-                    {protocoloEmAnalise.cupons?.map((c, idx) => (
-                      <div
-                        key={c.id || idx}
-                        style={{
-                          background: '#F9F7F2',
-                          padding: 10,
-                          borderRadius: 6,
-                          border: '1px solid #E6E0D4',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <strong>{c.numero}</strong>
-                          <span style={{ fontWeight: 600, color: '#1B5E3A' }} className="tabular-nums">R$ {c.valor.toFixed(2)}</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: '#59615C' }}>
-                          Emissão: {c.dataEmissao} • CNPJ: {c.cnpjEmissor}
-                        </div>
-                        <div style={{ fontSize: 10, fontFamily: 'monospace', color: '#59615C', wordBreak: 'break-all', marginTop: 2 }}>
-                          Chave: {c.chaveAcesso}
-                        </div>
-                      </div>
-                    ))}
+                  <Text strong style={{ fontSize: 13 }}>
+                    Cupons Fiscais Diários do Lote ({protocoloEmAnalise.cupons?.length || 0}):
+                  </Text>
+                  <div style={{ marginTop: 10, maxHeight: 440, overflowY: 'auto' }}>
+                    <Collapse
+                      size="small"
+                      style={{ background: '#F9F7F2', borderColor: '#E6E0D4' }}
+                      items={(protocoloEmAnalise.cupons || []).map((c, idx) => {
+                        const urlSefaz = c.qrCodeUrl || gerarUrlConsultaSefaz(c.chaveAcesso);
+                        return {
+                          key: c.id || String(idx),
+                          label: (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', paddingRight: 8 }}>
+                              <span>
+                                <strong>#{idx + 1}</strong> • {c.dataEmissao} — {c.numero}
+                              </span>
+                              <span style={{ fontWeight: 700, color: '#1B5E3A' }} className="tabular-nums">
+                                R$ {c.valor.toFixed(2)}
+                              </span>
+                            </div>
+                          ),
+                          children: (
+                            <div style={{ fontSize: 12 }}>
+                              <div>
+                                <strong>CNPJ Emissor:</strong> {c.cnpjEmissor}
+                              </div>
+                              <div style={{ marginTop: 4 }}>
+                                <strong>Chave / Código QR (44 dígitos):</strong>
+                                <div
+                                  style={{
+                                    fontFamily: 'monospace',
+                                    fontSize: 11,
+                                    background: '#FFF',
+                                    padding: '3px 6px',
+                                    borderRadius: 4,
+                                    border: '1px solid #E6E0D4',
+                                    wordBreak: 'break-all',
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  <Text copyable={{ text: c.chaveAcesso }} style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                                    {c.chaveAcesso}
+                                  </Text>
+                                </div>
+                              </div>
+                              <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <Button
+                                  type="primary"
+                                  size="small"
+                                  icon={<SafetyCertificateOutlined />}
+                                  href={urlSefaz}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ background: '#1B5E3A', borderColor: '#1B5E3A' }}
+                                >
+                                  Confirmar Veracidade na SEFAZ <ExportOutlined />
+                                </Button>
+                                {c.comprovanteFotoUrl && (
+                                  <Button
+                                    size="small"
+                                    icon={<EyeOutlined />}
+                                    onClick={() => window.open(c.comprovanteFotoUrl, '_blank')}
+                                  >
+                                    Ver Foto
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ),
+                        };
+                      })}
+                    />
                   </div>
                 </div>
               )}
@@ -911,6 +963,30 @@ export const PainelSecretaria: React.FC = () => {
                   <div><strong>NF:</strong> {protocoloEmAnalise.nfNumero}</div>
                   <div><strong>CNPJ:</strong> {protocoloEmAnalise.nfCnpj}</div>
                   <div><strong>Emissão:</strong> {protocoloEmAnalise.nfDataEmissao}</div>
+                  {protocoloEmAnalise.nfChaveAcesso && (
+                    <div style={{ marginTop: 8 }}>
+                      <strong>Chave / QR Code:</strong>
+                      <div style={{ fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all', marginTop: 2 }}>
+                        <Text copyable={{ text: protocoloEmAnalise.nfChaveAcesso }} style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                          {protocoloEmAnalise.nfChaveAcesso}
+                        </Text>
+                      </div>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<SafetyCertificateOutlined />}
+                        href={
+                          protocoloEmAnalise.nfQrCodeUrl ||
+                          gerarUrlConsultaSefaz(protocoloEmAnalise.nfChaveAcesso)
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ marginTop: 6, background: '#1B5E3A', borderColor: '#1B5E3A' }}
+                      >
+                        Confirmar Veracidade na SEFAZ <ExportOutlined />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 

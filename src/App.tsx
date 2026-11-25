@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ConfigProvider,
   Layout,
-  Segmented,
   Button,
   Modal,
   Input,
   message,
+  Tag,
+  Spin,
   Space,
 } from 'antd';
 import ptBR from 'antd/locale/pt_BR';
@@ -17,11 +18,14 @@ import {
   BankOutlined,
   KeyOutlined,
   ScanOutlined,
-  BookOutlined,
+  LogoutOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
 import { AreaAluno } from './components/AreaAluno';
 import { PainelSecretaria } from './components/PainelSecretaria';
+import { LoginPage } from './components/LoginPage';
 import { setGeminiApiKey, getGeminiApiKey } from './services/geminiService';
 
 dayjs.locale('pt-br');
@@ -29,23 +33,54 @@ dayjs.locale('pt-br');
 const { Header, Content, Footer } = Layout;
 
 const MainContent: React.FC = () => {
+  const { user, loadingAuth, logout } = useAuth();
   const { perfil, setPerfil } = useApp();
   const [modalApiKeyOpen, setModalApiKeyOpen] = useState(false);
   const [chaveInput, setChaveInput] = useState(() => getGeminiApiKey());
+
+  // Sincroniza a visão inicial com o perfil autenticado (ALUNO -> ALUNO, ADMIN -> SECRETARIA, DEV -> livre)
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'ALUNO') setPerfil('ALUNO');
+    else if (user.role === 'ADMIN') setPerfil('SECRETARIA');
+  }, [user, setPerfil]);
+
+  if (loadingAuth) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#F9F7F2',
+        }}
+      >
+        <Spin size="large" tip="Carregando sessão..." />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  const isDev = user.role === 'DEV';
+  const isAdmin = user.role === 'ADMIN';
 
   const handleSalvarApiKey = () => {
     setGeminiApiKey(chaveInput.trim());
     message.success(
       chaveInput.trim()
         ? 'Chave do motor de leitura documental (Gemini) salva com sucesso!'
-        : 'Chave removida. O sistema funcionará com extração simulada inteligente.'
+        : 'Chave removida. O sistema continuará usando o motor local gratuito (QR Code + OCR).'
     );
     setModalApiKeyOpen(false);
   };
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#F9F7F2' }}>
-      {/* 1. FAIXA FINA DECORATIVA INSTITUCIONAL TRI-COLOR (4px) */}
+      {/* 1. FAIXA FINA DECORATIVA INSTITUCIONAL TRI-COLOR */}
       <div className="semec-flag-bar">
         <div className="bar-green" />
         <div className="bar-gold" />
@@ -65,7 +100,7 @@ const MainContent: React.FC = () => {
           lineHeight: 'normal',
         }}
       >
-        {/* LOGO OFICIAL & TÍTULO DO SISTEMA COM DIVISÓRIA SUTIL */}
+        {/* LOGO OFICIAL & TÍTULO */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <img
             src="/SEMEC_400x416.png"
@@ -77,14 +112,7 @@ const MainContent: React.FC = () => {
               display: 'block',
             }}
           />
-          {/* Divisória vertical sutil */}
-          <div
-            style={{
-              width: 1,
-              height: 36,
-              backgroundColor: '#E6E0D4',
-            }}
-          />
+          <div style={{ width: 1, height: 36, backgroundColor: '#E6E0D4' }} />
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div
               className="brand-title"
@@ -105,70 +133,100 @@ const MainContent: React.FC = () => {
           </div>
         </div>
 
-        {/* SELETOR DE PERFIL E CONFIGURAÇÃO TÉCNICA COLORIDOS */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
-          {/* BOTÃO OCR/GEMINI COM COR DE DESTAQUE DOURADA/VERDE */}
-          <Button
-            type="default"
-            icon={<ScanOutlined style={{ color: getGeminiApiKey() ? '#1B5E3A' : '#C99B53' }} />}
-            style={{
-              color: '#1F2421',
-              background: '#FFFFFF',
-              border: '1.5px solid #C99B53',
-              borderRadius: 6,
-              fontWeight: 600,
-              fontSize: 13,
-              boxShadow: '0 1px 2px rgba(201, 155, 83, 0.1)',
-            }}
-            size="middle"
-            onClick={() => setModalApiKeyOpen(true)}
-          >
-            {getGeminiApiKey() ? 'OCR Ativo' : 'Configurar OCR/Gemini'}
-          </Button>
+        {/* CONTROLES DE PERFIL (DEV VÊ TUDO; ADMIN VÊ SECRETARIA; ALUNO VÊ ESTUDANTE) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isDev && (
+            <>
+              <Button
+                type="default"
+                icon={<ScanOutlined style={{ color: getGeminiApiKey() ? '#1B5E3A' : '#C99B53' }} />}
+                style={{
+                  color: '#1F2421',
+                  background: '#FFFFFF',
+                  border: '1.5px solid #C99B53',
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+                size="middle"
+                onClick={() => setModalApiKeyOpen(true)}
+              >
+                {getGeminiApiKey() ? 'OCR Gemini Ativo' : 'Configurar OCR'}
+              </Button>
 
-          {/* BOTÕES DE PERFIL NA COR DA MARCA */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button
-              type={perfil === 'ALUNO' ? 'primary' : 'default'}
-              icon={<UserOutlined />}
-              onClick={() => setPerfil('ALUNO')}
+              <Button
+                type={perfil === 'ALUNO' ? 'primary' : 'default'}
+                icon={<UserOutlined />}
+                onClick={() => setPerfil('ALUNO')}
+                style={{
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  ...(perfil === 'ALUNO'
+                    ? { background: '#1B5E3A', borderColor: '#1B5E3A', color: '#FFFFFF' }
+                    : { background: '#FFFFFF', borderColor: '#E6E0D4', color: '#59615C' }),
+                }}
+              >
+                Visão Estudante
+              </Button>
+
+              <Button
+                type={perfil === 'SECRETARIA' ? 'primary' : 'default'}
+                icon={<BankOutlined />}
+                onClick={() => setPerfil('SECRETARIA')}
+                style={{
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  ...(perfil === 'SECRETARIA'
+                    ? { background: '#14452B', borderColor: '#14452B', color: '#FFFFFF' }
+                    : { background: '#FFFFFF', borderColor: '#E6E0D4', color: '#59615C' }),
+                }}
+              >
+                Visão Secretaria
+              </Button>
+            </>
+          )}
+
+          <Space size={8} style={{ marginLeft: 4 }}>
+            <Tag
+              icon={isDev ? <CodeOutlined /> : isAdmin ? <BankOutlined /> : <UserOutlined />}
               style={{
-                borderRadius: 6,
+                background: isDev ? '#FFF8E1' : '#E8F5E9',
+                color: isDev ? '#8C6214' : '#1B5E3A',
+                borderColor: isDev ? '#FFE082' : '#C8E6C9',
                 fontWeight: 600,
-                fontSize: 13,
-                ...(perfil === 'ALUNO'
-                  ? { background: '#1B5E3A', borderColor: '#1B5E3A', color: '#FFFFFF', boxShadow: '0 2px 4px rgba(27, 94, 58, 0.25)' }
-                  : { background: '#FFFFFF', borderColor: '#E6E0D4', color: '#59615C' }),
+                padding: '3px 8px',
+                margin: 0,
               }}
             >
-              Área do Estudante
-            </Button>
+              {user.nome} ({isDev ? 'DEV' : isAdmin ? 'ADMIN' : 'ALUNO'})
+            </Tag>
 
             <Button
-              type={perfil === 'SECRETARIA' ? 'primary' : 'default'}
-              icon={<BankOutlined />}
-              onClick={() => setPerfil('SECRETARIA')}
-              style={{
-                borderRadius: 6,
-                fontWeight: 600,
-                fontSize: 13,
-                ...(perfil === 'SECRETARIA'
-                  ? { background: '#14452B', borderColor: '#14452B', color: '#FFFFFF', boxShadow: '0 2px 4px rgba(20, 69, 43, 0.25)' }
-                  : { background: '#FFFFFF', borderColor: '#E6E0D4', color: '#59615C' }),
-              }}
+              size="middle"
+              icon={<LogoutOutlined />}
+              onClick={() => void logout()}
+              style={{ borderColor: '#E6E0D4', color: '#A83A28', fontWeight: 600 }}
             >
-              Painel da Secretaria
+              Sair
             </Button>
-          </div>
+          </Space>
         </div>
       </Header>
 
-      {/* 3. ÁREA DE CONTEÚDO */}
+      {/* 3. ÁREA DE CONTEÚDO PROTEGIDA POR PERFIL */}
       <Content style={{ background: '#F9F7F2', minHeight: 'calc(100vh - 145px)' }}>
-        {perfil === 'ALUNO' ? <AreaAluno /> : <PainelSecretaria />}
+        {isDev ? (
+          perfil === 'ALUNO' ? <AreaAluno /> : <PainelSecretaria />
+        ) : isAdmin ? (
+          <PainelSecretaria />
+        ) : (
+          <AreaAluno />
+        )}
       </Content>
 
-      {/* 4. RODAPÉ OFICIAL DISCRETO */}
+      {/* 4. RODAPÉ OFICIAL */}
       <Footer className="semec-footer">
         <div>
           <strong>Secretaria Municipal da Educação de Capivari (SEMEC)</strong> — Rua Pedro Stucchi, 381, Pão de Açúcar, Capivari/SP | CEP 13360-000
@@ -181,7 +239,7 @@ const MainContent: React.FC = () => {
         </div>
       </Footer>
 
-      {/* MODAL CONFIGURAÇÃO MOTOR DOCUMENTAL */}
+      {/* MODAL CONFIGURAÇÃO MOTOR DOCUMENTAL (EXCLUSIVO DEV) */}
       <Modal
         title={
           <span style={{ fontFamily: "'Merriweather', serif", fontWeight: 700, color: '#1F2421' }}>
@@ -204,19 +262,6 @@ const MainContent: React.FC = () => {
           onChange={(e) => setChaveInput(e.target.value)}
           style={{ borderRadius: 6 }}
         />
-        <div
-          style={{
-            marginTop: 14,
-            padding: 12,
-            background: '#F9F7F2',
-            border: '1px solid #E6E0D4',
-            borderRadius: 6,
-            fontSize: 12,
-            color: '#59615C',
-          }}
-        >
-          📌 <strong>Modo com Fallback Ativo:</strong> Se nenhuma chave for inserida, o sistema manterá o processamento estruturado e auditoria funcional para fins de validação.
-        </div>
       </Modal>
     </Layout>
   );
@@ -228,55 +273,36 @@ export default function App() {
       locale={ptBR}
       theme={{
         token: {
-          colorPrimary: '#1B5E3A', // Verde-mata institucional
+          colorPrimary: '#1B5E3A',
           colorInfo: '#1B5E3A',
           colorSuccess: '#2E7D32',
-          colorWarning: '#C99B53', // Ouro / Ocre
-          colorError: '#A83A28',   // Terracota / Tijolo
-          colorBgLayout: '#F9F7F2', // Papel quente / Off-white
+          colorWarning: '#C99B53',
+          colorError: '#A83A28',
+          colorBgLayout: '#F9F7F2',
           colorBgContainer: '#FFFFFF',
-          colorBorderSecondary: '#E6E0D4', // Areia suave
+          colorBorderSecondary: '#E6E0D4',
           colorText: '#1F2421',
           colorTextSecondary: '#59615C',
-          borderRadius: 6, // Cantos sóbrios
+          borderRadius: 6,
           fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           boxShadow: 'none',
         },
         components: {
-          Card: {
-            borderRadiusLG: 6,
-            colorBorderSecondary: '#E6E0D4',
-          },
-          Button: {
-            borderRadius: 6,
-            controlHeight: 38,
-            fontWeight: 600,
-          },
-          Table: {
-            borderRadius: 6,
-            headerBg: '#F9F7F2',
-            headerColor: '#1F2421',
-            borderColor: '#E6E0D4',
-          },
-          Drawer: {
-            colorBgElevated: '#FFFFFF',
-          },
-          Tabs: {
-            itemSelectedColor: '#1B5E3A',
-            inkBarColor: '#1B5E3A',
-          },
-          Steps: {
-            colorPrimary: '#1B5E3A',
-          },
-          Alert: {
-            borderRadiusLG: 6,
-          },
+          Card: { borderRadiusLG: 6, colorBorderSecondary: '#E6E0D4' },
+          Button: { borderRadius: 6, controlHeight: 38, fontWeight: 600 },
+          Table: { borderRadius: 6, headerBg: '#F9F7F2', headerColor: '#1F2421', borderColor: '#E6E0D4' },
+          Drawer: { colorBgElevated: '#FFFFFF' },
+          Tabs: { itemSelectedColor: '#1B5E3A', inkBarColor: '#1B5E3A' },
+          Steps: { colorPrimary: '#1B5E3A' },
+          Alert: { borderRadiusLG: 6 },
         },
       }}
     >
-      <AppProvider>
-        <MainContent />
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <MainContent />
+        </AppProvider>
+      </AuthProvider>
     </ConfigProvider>
   );
 }

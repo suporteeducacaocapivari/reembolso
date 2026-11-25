@@ -5,6 +5,7 @@ import {
   Button,
   Form,
   Input,
+  InputNumber,
   DatePicker,
   Statistic,
   Checkbox,
@@ -24,6 +25,7 @@ import {
   EyeOutlined,
   SafetyCertificateOutlined,
   FileSearchOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 import confetti from 'canvas-confetti';
 import dayjs from 'dayjs';
@@ -31,7 +33,8 @@ import { useApp } from '../context/AppContext';
 import { analisarDocumentoTransporte } from '../services/geminiService';
 import { gerarPdfAnexoIV } from '../services/pdfService';
 import { QrCodeScannerModal } from './QrCodeScannerModal';
-import type { DadosQrCodeFiscal } from '../services/qrFiscalParser';
+import { consultarRazaoSocialPorCnpj } from '../services/localOcrService';
+import { gerarUrlConsultaSefaz, type DadosQrCodeFiscal } from '../services/qrFiscalParser';
 import type { DocumentoExtraidoGemini, ProtocoloMensal } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
@@ -52,11 +55,18 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
   const [protocoloGerado, setProtocoloGerado] = useState<ProtocoloMensal | null>(null);
   const [modalSucesso, setModalSucesso] = useState(false);
   const [modalQrOpen, setModalQrOpen] = useState(false);
+  const [chaveOuQrAtual, setChaveOuQrAtual] = useState<string>('');
+  const [urlVerificacaoAtual, setUrlVerificacaoAtual] = useState<string>('');
 
-  const handleQrDecodedFretado = (dados: DadosQrCodeFiscal) => {
+  const handleQrDecodedFretado = async (dados: DadosQrCodeFiscal) => {
+    const razao = dados.cnpjEmissor ? await consultarRazaoSocialPorCnpj(dados.cnpjEmissor) : '';
+    setChaveOuQrAtual(dados.chaveAcesso);
+    setUrlVerificacaoAtual(dados.urlVerificacao);
     form.setFieldsValue({
+      ...(razao ? { empresaTransporte: razao } : {}),
       numero: dados.numeroDocumento,
       cnpj: dados.cnpjEmissor,
+      chaveQrCode: dados.chaveAcesso,
       ...(dados.dataEmissao ? { dataEmissao: dayjs(dados.dataEmissao) } : {}),
       ...(dados.valorTotal ? { valorTotal: dados.valorTotal } : {}),
     });
@@ -65,13 +75,15 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
     }
     setDadosIa({
       tipo_documento: dados.modelo === 'BP-e' ? 'BPE' : 'NF',
+      empresa_emissora: razao,
       cnpj_emissor: dados.cnpjEmissor,
       numero_documento: dados.numeroDocumento,
       chave_acesso_44_digitos: dados.chaveAcesso,
+      qr_code_url: dados.urlVerificacao,
       data_emissao: dados.dataEmissao || `${dados.anoMes}-01`,
       valor_total: dados.valorTotal || valorTotal,
       confianca_leitura: 'ALTA',
-      origem_leitura: 'GEMINI_REAL',
+      origem_leitura: 'OCR_LOCAL_REAL',
     });
     message.success(`Dados do QR Code (${dados.numeroDocumento}) preenchidos automaticamente!`);
   };
@@ -86,24 +98,28 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
       const extraido = await analisarDocumentoTransporte(file, 'NF');
       setDadosIa(extraido);
       setValorTotal(extraido.valor_total);
+      const chExtraida = extraido.chave_acesso_44_digitos || '';
+      const urlExtraida = extraido.qr_code_url || (chExtraida ? gerarUrlConsultaSefaz(chExtraida) : '');
+      setChaveOuQrAtual(chExtraida);
+      setUrlVerificacaoAtual(urlExtraida);
 
       form.setFieldsValue({
-        empresaTransporte: extraido.empresa_emissora || '',
-        numero: extraido.numero_documento,
-        cnpj: extraido.cnpj_emissor,
-        dataEmissao: extraido.data_emissao ? dayjs(extraido.data_emissao) : dayjs(),
-        valorTotal: extraido.valor_total,
+        ...(extraido.empresa_emissora ? { empresaTransporte: extraido.empresa_emissora } : {}),
+        numero: extraido.numero_documento || '',
+        cnpj: extraido.cnpj_emissor || '',
+        chaveQrCode: chExtraida,
+        dataEmissao: extraido.data_emissao ? dayjs(extraido.data_emissao) : undefined,
+        valorTotal: extraido.valor_total || undefined,
       });
 
-      if (extraido.origem_leitura === 'SIMULADO_SEM_CHAVE') {
-        message.warning({
-          content: 'Modo Simulado: configure sua GEMINI_API_KEY no topo da tela para ler os dados reais da imagem.',
+      if (extraido.origem_leitura === 'OCR_LOCAL_REAL') {
+        message.success({
+          content: `Leitura real concluída (QR Code + OCR Local — confiança ${extraido.confianca_leitura}). Confira os campos preenchidos.`,
           key: 'doc-msg',
-          duration: 5,
         });
       } else {
         message.success({
-          content: `Dados reais extraídos pelo Gemini (${extraido.confianca_leitura} confiabilidade). Confira os campos.`,
+          content: `Dados reais extraídos pelo Gemini (confiança ${extraido.confianca_leitura}). Confira os campos.`,
           key: 'doc-msg',
         });
       }
@@ -150,11 +166,15 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
         empresaTransporte: values.empresaTransporte || 'Empresa de Transporte Escolar',
         nfNumero: values.numero,
         nfCnpj: values.cnpj,
+        nfChaveAcesso: values.chaveQrCode || chaveOuQrAtual || undefined,
+        nfQrCodeUrl:
+          urlVerificacaoAtual ||
+          (values.chaveQrCode ? gerarUrlConsultaSefaz(values.chaveQrCode) : undefined),
         nfDataEmissao: values.dataEmissao.format('YYYY-MM-DD'),
         nfArquivoNome: arquivoFile?.name || 'Nota_Fiscal.pdf',
         nfArquivoUrl: arquivoPreviewUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=900&q=80',
-        valorTotalComprovado: values.valorTotal,
-        valorIndividualNf: values.valorIndividual || values.valorTotal,
+        valorTotalComprovado: Number(values.valorTotal),
+        valorIndividualNf: Number(values.valorIndividual || values.valorTotal),
         valorReembolsoEstimado: valorEstimadoReembolso,
         confiancaIa: dadosIa?.confianca_leitura || 'ALTA',
         declaracaoVeracidade: true,
@@ -248,41 +268,31 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
 
             {dadosIa && (
               <Alert
-                type={dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE' ? 'warning' : 'info'}
+                type="info"
                 showIcon
                 message={
                   <Space>
                     <span>
-                      {dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE'
-                        ? 'Modo Simulado (Sem API Key)'
+                      {dadosIa.origem_leitura === 'OCR_LOCAL_REAL'
+                        ? 'Leitura real via QR Code + OCR Local (Gratuito)'
                         : 'Dados reais extraídos pelo Gemini'}
                     </span>
                     <Tag
                       style={{
-                        background: dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE' ? '#FFF8E1' : '#E8F5E9',
-                        color: dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE' ? '#C99B53' : '#1B5E3A',
-                        borderColor: dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE' ? '#FFE082' : '#C8E6C9',
+                        background: '#E8F5E9',
+                        color: '#1B5E3A',
+                        borderColor: '#C8E6C9',
                       }}
                     >
-                      {dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE'
-                        ? 'Fictício'
-                        : `Confiabilidade ${dadosIa.confianca_leitura}`}
+                      Confiabilidade {dadosIa.confianca_leitura}
                     </Tag>
                   </Space>
                 }
-                description={
-                  dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE'
-                    ? 'Os dados ao lado são fictícios porque nenhuma GEMINI_API_KEY foi configurada. Clique em "Configurar OCR/Gemini" no topo da tela para ativar a leitura real da imagem.'
-                    : 'Os campos ao lado foram extraídos diretamente do documento enviado. Confira os valores antes de assinar digitalmente.'
-                }
+                description="Os campos ao lado foram lidos diretamente da imagem enviada (sem dados fictícios). Confira os valores antes de assinar digitalmente."
                 style={{
                   borderRadius: 6,
-                  border:
-                    dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE'
-                      ? '1px solid #FFE082'
-                      : '1px solid #E6E0D4',
-                  background:
-                    dadosIa.origem_leitura === 'SIMULADO_SEM_CHAVE' ? '#FFF8E1' : '#F9F7F2',
+                  border: '1px solid #E6E0D4',
+                  background: '#F9F7F2',
                 }}
               />
             )}
@@ -325,6 +335,40 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
                 </Form.Item>
               </div>
 
+              <Form.Item
+                name="chaveQrCode"
+                label="Código do QR Code / Chave de Acesso (44 dígitos p/ Verificação)"
+              >
+                <Input
+                  placeholder="44 dígitos ou link do QR Code (preenchido automaticamente na leitura)"
+                  style={{ borderRadius: 6, fontFamily: 'monospace', fontSize: 12 }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setChaveOuQrAtual(val);
+                    setUrlVerificacaoAtual(val.trim() ? gerarUrlConsultaSefaz(val) : '');
+                  }}
+                  suffix={
+                    (urlVerificacaoAtual || chaveOuQrAtual.trim()) ? (
+                      <a
+                        href={urlVerificacaoAtual || gerarUrlConsultaSefaz(chaveOuQrAtual)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: '#1B5E3A',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        Confirmar na SEFAZ <ExportOutlined />
+                      </a>
+                    ) : null
+                  }
+                />
+              </Form.Item>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <Form.Item
                   name="dataEmissao"
@@ -339,13 +383,15 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
                   label="Valor TOTAL NF (R$)"
                   rules={[{ required: true, message: 'Informe o valor total' }]}
                 >
-                  <Input
-                    type="number"
-                    step="0.01"
+                  <InputNumber
+                    precision={2}
+                    decimalSeparator=","
+                    step={0.1}
+                    min={0}
                     prefix="R$"
-                    placeholder="0.00"
-                    style={{ borderRadius: 6 }}
-                    onChange={(e) => setValorTotal(parseFloat(e.target.value) || 0)}
+                    placeholder="0,00"
+                    style={{ width: '100%', borderRadius: 6 }}
+                    onChange={(val) => setValorTotal(Number(val) || 0)}
                   />
                 </Form.Item>
 
@@ -353,12 +399,14 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
                   name="valorIndividual"
                   label="Valor INDIVIDUAL (R$)"
                 >
-                  <Input
-                    type="number"
-                    step="0.01"
+                  <InputNumber
+                    precision={2}
+                    decimalSeparator=","
+                    step={0.1}
+                    min={0}
                     prefix="R$"
                     placeholder="Igual ao total"
-                    style={{ borderRadius: 6 }}
+                    style={{ width: '100%', borderRadius: 6 }}
                   />
                 </Form.Item>
               </div>
@@ -511,38 +559,23 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
             </Text>
           </div>
 
-          <Space direction="vertical" style={{ width: '100%' }} size="small">
-            <Button
-              type="primary"
-              size="large"
-              block
-              icon={<FilePdfOutlined />}
-              style={{ background: '#1B5E3A', borderColor: '#1B5E3A', height: 44, fontWeight: 600 }}
-              onClick={() => {
-                if (protocoloGerado) {
-                  gerarPdfAnexoIV(protocoloGerado, alunoAtual)
-                    .then(() => message.success('Anexo IV (Protocolo + Recibo) baixado em PDF!'))
-                    .catch(() => message.error('Erro ao gerar o PDF do Anexo IV.'));
-                }
-              }}
-            >
-              Baixar Anexo IV Oficial Preenchido (PDF)
-            </Button>
-
-            <Button
-              size="large"
-              block
-              onClick={() => {
-                setModalSucesso(false);
-                form.resetFields();
-                setArquivoFile(null);
-                setValorTotal(0);
-                setDeclarou(false);
-              }}
-            >
-              Concluir e Retornar ao Painel
-            </Button>
-          </Space>
+          <Button
+            type="primary"
+            size="large"
+            block
+            style={{ background: '#1B5E3A', borderColor: '#1B5E3A', height: 44, fontWeight: 600 }}
+            onClick={() => {
+              setModalSucesso(false);
+              form.resetFields();
+              setArquivoFile(null);
+              setValorTotal(0);
+              setDeclarou(false);
+              setChaveOuQrAtual('');
+              setUrlVerificacaoAtual('');
+            }}
+          >
+            Concluir
+          </Button>
         </div>
       </Modal>
     </div>

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { DocumentoExtraidoGemini } from '../types';
+import { extrairDadosLocaisReais } from './localOcrService';
 
 export const getGeminiApiKey = (): string => {
   return localStorage.getItem('GEMINI_API_KEY') || import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -114,38 +115,7 @@ Extraia EXATAMENTE os dados visíveis no documento, sem inventar nada:
     }
   }
 
-  // --- Fallback Simulado (Somente quando NÃO há API Key configurada) ---
-  await new Promise((resolve) => setTimeout(resolve, 900));
-
-  const randomNum = Math.floor(1000 + Math.random() * 9000);
-  const dataHoje = new Date().toISOString().split('T')[0];
-
-  if (tipoEsperado === 'CUPOM_FISCAL') {
-    const chave44 = `352611${Math.floor(10000000000000 + Math.random() * 90000000000000)}${Math.floor(100000000000000000000000 + Math.random() * 900000000000000000000000)}`.slice(0, 44);
-    const valorAleatorio = [6.8, 7.5, 8.2, 9.4, 14.5][Math.floor(Math.random() * 5)];
-    return {
-      tipo_documento: 'CUPOM_FISCAL',
-      empresa_emissora: 'Viação Capivari (Simulado)',
-      cnpj_emissor: '07.123.456/0001-89',
-      numero_documento: `CF-${randomNum}`,
-      chave_acesso_44_digitos: chave44,
-      data_emissao: dataHoje,
-      valor_total: valorAleatorio,
-      confianca_leitura: 'MEDIA',
-      origem_leitura: 'SIMULADO_SEM_CHAVE',
-    };
-  }
-
-  const valorFretado = [380.0, 420.0, 550.0, 680.0, 720.0][Math.floor(Math.random() * 5)];
-  return {
-    tipo_documento: 'NF',
-    empresa_emissora: 'TransCapivari Fretamento Ltda (Simulado)',
-    cnpj_emissor: '18.942.331/0001-44',
-    numero_documento: `NF-e ${randomNum}`,
-    chave_acesso_44_digitos: null,
-    data_emissao: dataHoje,
-    valor_total: valorFretado,
-    confianca_leitura: 'MEDIA',
-    origem_leitura: 'SIMULADO_SEM_CHAVE',
-  };
+  // --- Motor Real Local 100% Gratuito (QR Code Fiscal + OCR Tesseract.js em Português) ---
+  // Nunca inventa dados fictícios: extrai diretamente da imagem enviada.
+  return await extrairDadosLocaisReais(file, tipoEsperado);
 }

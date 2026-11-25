@@ -3,6 +3,7 @@ import { Modal, Tabs, Upload, Button, Alert, Typography, InputNumber, Space, Tag
 import { CameraOutlined, PictureOutlined, CheckCircleOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { Html5Qrcode } from 'html5-qrcode';
 import { decodificarQrCodeFiscal, type DadosQrCodeFiscal } from '../services/qrFiscalParser';
+import { lerQrCodeDeArquivoImagem, extrairDadosLocaisReais } from '../services/localOcrService';
 
 const { Text } = Typography;
 
@@ -91,33 +92,47 @@ export const QrCodeScannerModal: React.FC<Props> = ({ open, onClose, onDecoded, 
 
   const handleLerImagem = async (file: File) => {
     await pararCamera();
-    const tempId = 'semec-qr-file-temp';
-    let tempEl = document.getElementById(tempId);
-    if (!tempEl) {
-      tempEl = document.createElement('div');
-      tempEl.id = tempId;
-      tempEl.style.display = 'none';
-      document.body.appendChild(tempEl);
-    }
+    message.loading({ content: 'Lendo QR Code e dados fiscais da imagem...', key: 'qr-img-msg' });
 
     try {
-      const html5QrCode = new Html5Qrcode(tempId);
-      const decodedText = await html5QrCode.scanFile(file, false);
-      html5QrCode.clear();
-
-      const parsed = decodificarQrCodeFiscal(decodedText);
+      const parsed = await lerQrCodeDeArquivoImagem(file);
       if (!parsed) {
-        message.error('O QR Code encontrado na foto não contém uma chave fiscal de 44 dígitos.');
+        message.error({
+          content: 'Não foi possível localizar um QR Code fiscal nítido nesta imagem.',
+          key: 'qr-img-msg',
+        });
         return false;
       }
 
-      setDadosLidos(parsed);
-      setValorInformado(parsed.valorTotal ?? null);
-      message.success(`QR Code ${parsed.modelo} extraído da imagem com sucesso!`);
+      let valorAuto = parsed.valorTotal ?? null;
+      let dataAuto = parsed.dataEmissao;
+
+      // Se o QR Code for BP-e / NFC-e v2 (sem valor embutido), complementa com OCR local gratuito
+      if (!valorAuto || !dataAuto) {
+        const extraOcr = await extrairDadosLocaisReais(file, 'CUPOM_FISCAL');
+        if (!valorAuto && extraOcr.valor_total > 0) {
+          valorAuto = extraOcr.valor_total;
+        }
+        if (!dataAuto && extraOcr.data_emissao) {
+          dataAuto = extraOcr.data_emissao;
+        }
+      }
+
+      setDadosLidos({
+        ...parsed,
+        dataEmissao: dataAuto || parsed.dataEmissao,
+        valorTotal: valorAuto ?? parsed.valorTotal,
+      });
+      setValorInformado(valorAuto);
+      message.success({
+        content: `QR Code ${parsed.modelo} (${parsed.numeroDocumento}) extraído com sucesso!`,
+        key: 'qr-img-msg',
+      });
     } catch {
-      message.error(
-        'Não foi possível localizar um QR Code nítido nesta imagem. Tente aproximar a foto do QR Code.'
-      );
+      message.error({
+        content: 'Erro ao processar a imagem enviada.',
+        key: 'qr-img-msg',
+      });
     }
     return false;
   };
