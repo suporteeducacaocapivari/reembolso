@@ -20,7 +20,7 @@ interface Props {
   nomeAluno: string;
   habilitado: boolean;
   assinaturaAtual?: ResultadoAssinaturaFacial;
-  onAssinado: (resultado: ResultadoAssinaturaFacial) => void;
+  onAssinado: (resultado: ResultadoAssinaturaFacial | undefined) => void;
 }
 
 export const AssinaturaFacialBox: React.FC<Props> = ({
@@ -144,7 +144,10 @@ export const AssinaturaFacialBox: React.FC<Props> = ({
           <Button
             size="small"
             icon={<ReloadOutlined />}
-            onClick={abrirCamera}
+            onClick={() => {
+              onAssinado(undefined);
+              void abrirCamera();
+            }}
           >
             Refazer Captura
           </Button>

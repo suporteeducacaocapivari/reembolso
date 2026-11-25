@@ -194,7 +194,7 @@ export const LoginPage: React.FC = () => {
                 label: (
                   <Space size={6}>
                     <UserAddOutlined />
-                    <span>Primeiro Acesso (Estudante)</span>
+                    <span>Primeiro Acesso</span>
                   </Space>
                 ),
                 children: (
