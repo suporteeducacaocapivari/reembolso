@@ -89,14 +89,18 @@ const MainContent: React.FC = () => {
 
       {/* 2. CABEÇALHO INSTITUCIONAL LIMPO SEMEC CAPIVARI */}
       <Header
+        className="semec-header"
         style={{
           background: '#FFFFFF',
-          padding: '0 24px',
+          padding: '10px 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
           borderBottom: '1px solid #E6E0D4',
-          height: 80,
+          height: 'auto',
+          minHeight: 74,
           lineHeight: 'normal',
         }}
       >
@@ -134,7 +138,7 @@ const MainContent: React.FC = () => {
         </div>
 
         {/* CONTROLES DE PERFIL (DEV VÊ TUDO; ADMIN VÊ SECRETARIA; ALUNO VÊ ESTUDANTE) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {isDev && (
             <>
               <Button

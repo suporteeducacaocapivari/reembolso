@@ -369,7 +369,7 @@ export const PrestacaoFretado: React.FC<Props> = ({ mesReferencia }) => {
                 />
               </Form.Item>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
                 <Form.Item
                   name="dataEmissao"
                   label="Data de Emissão"
