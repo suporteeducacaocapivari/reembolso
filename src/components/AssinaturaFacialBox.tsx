@@ -241,20 +241,18 @@ export const AssinaturaFacialBox: React.FC<Props> = ({
                 />
               </div>
 
-              <div style={{ marginTop: 14 }}>
-                <Space>
-                  <Button onClick={pararCamera}>Cancelar</Button>
-                  <Button
-                    type="primary"
-                    size="large"
-                    icon={<SafetyCertificateOutlined />}
-                    loading={processando}
-                    style={{ background: '#1B5E3A', borderColor: '#1B5E3A', fontWeight: 600 }}
-                    onClick={capturarEAssinar}
-                  >
-                    Capturar Rosto e Assinar Digitalmente
-                  </Button>
-                </Space>
+              <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Button onClick={pararCamera}>Cancelar</Button>
+                <Button
+                  type="primary"
+                  size="middle"
+                  icon={<SafetyCertificateOutlined />}
+                  loading={processando}
+                  style={{ background: '#1B5E3A', borderColor: '#1B5E3A', fontWeight: 600 }}
+                  onClick={capturarEAssinar}
+                >
+                  Capturar Rosto
+                </Button>
               </div>
             </Spin>
           </div>
